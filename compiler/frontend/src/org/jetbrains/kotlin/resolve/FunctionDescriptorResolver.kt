@@ -215,17 +215,14 @@ class FunctionDescriptorResolver(
             }
         }
 
-        val receiverToLabelMap = linkedMapOf<ReceiverParameterDescriptor, String>()
+        val receiverLabelStorage = ReceiverLabelStorage(functionDescriptor)
         val extensionReceiver = receiverType?.let {
             val splitter = AnnotationSplitter(storageManager, receiverType.annotations, EnumSet.of(AnnotationUseSiteTarget.RECEIVER))
             DescriptorFactory.createExtensionReceiverParameterForCallable(
                 functionDescriptor, it, splitter.getAnnotationsForTarget(AnnotationUseSiteTarget.RECEIVER), false
             )
         }?.apply {
-            val extensionReceiverName = receiverTypeRef?.nameForReceiverLabel()
-            if (extensionReceiverName != null) {
-                receiverToLabelMap[this] = extensionReceiverName
-            }
+            receiverLabelStorage.put(receiverTypeRef?.nameForReceiverLabel(), this)
         }
 
         val additionalReceivers = additionalReceiverTypes.mapNotNull { type ->
@@ -237,10 +234,10 @@ class FunctionDescriptorResolver(
         additionalReceivers.reversed().zip(additionalReceiverTypeRefs.lastIndex downTo 0).forEach { (additionalReceiver, i) ->
             val additionalReceiverName = additionalReceiverTypeRefs[i].nameForReceiverLabel()
             if (additionalReceiverName != null) {
-                receiverToLabelMap[additionalReceiver] = additionalReceiverName
+                receiverLabelStorage.put(additionalReceiverName, additionalReceiver)
             }
         }
-        trace.record(BindingContext.DESCRIPTOR_TO_NAMED_RECEIVERS, functionDescriptor, receiverToLabelMap)
+        trace.record(BindingContext.DESCRIPTOR_TO_RECEIVER_LABEL_STORAGE, functionDescriptor, receiverLabelStorage)
         functionDescriptor.initialize(
             extensionReceiver,
             getDispatchReceiverParameterIfNeeded(container),

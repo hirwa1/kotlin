@@ -27,10 +27,7 @@ import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
 import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
 import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor;
-import org.jetbrains.kotlin.resolve.BindingContext;
-import org.jetbrains.kotlin.resolve.BindingTrace;
-import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils;
-import org.jetbrains.kotlin.resolve.DescriptorUtils;
+import org.jetbrains.kotlin.resolve.*;
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil;
 import org.jetbrains.kotlin.resolve.lazy.LazyClassContext;
 import org.jetbrains.kotlin.resolve.lazy.LazyEntity;
@@ -51,19 +48,15 @@ import org.jetbrains.kotlin.storage.StorageManager;
 import org.jetbrains.kotlin.types.*;
 import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import static kotlin.collections.CollectionsKt.emptyList;
 import static kotlin.collections.CollectionsKt.firstOrNull;
 import static org.jetbrains.kotlin.descriptors.DescriptorVisibilities.PRIVATE;
 import static org.jetbrains.kotlin.descriptors.DescriptorVisibilities.PUBLIC;
 import static org.jetbrains.kotlin.diagnostics.Errors.*;
 import static org.jetbrains.kotlin.lexer.KtTokens.INNER_KEYWORD;
-import static org.jetbrains.kotlin.resolve.BindingContext.TYPE;
+import static org.jetbrains.kotlin.resolve.BindingContext.*;
 import static org.jetbrains.kotlin.resolve.ModifiersChecker.resolveModalityFromModifiers;
 import static org.jetbrains.kotlin.resolve.ModifiersChecker.resolveVisibilityFromModifiers;
 
@@ -286,16 +279,23 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                 }
             });
         this.additionalReceivers = storageManager.createLazyValue(() -> {
+            ReceiverLabelStorage receiverLabelStorage = new ReceiverLabelStorage(this);
+            receiverLabelStorage.put(null, getThisAsReceiverParameter());
+            c.getTrace().record(DESCRIPTOR_TO_RECEIVER_LABEL_STORAGE, this, receiverLabelStorage);
             if (classOrObject == null) {
                 return CollectionsKt.emptyList();
             }
-            return classOrObject.getAdditionalReceiverTypeReferences().stream().map(typeReference -> {
+            return classOrObject.getAdditionalReceiverTypeReferences().stream()
+                    .filter(Objects::nonNull)
+                    .map(typeReference -> {
                 KotlinType kotlinType = c.getTypeResolver().resolveType(getScopeForClassHeaderResolution(), typeReference, c.getTrace(), true);
-                return new ReceiverParameterDescriptorImpl(
+                ReceiverParameterDescriptor receiverParameterDescriptor = new ReceiverParameterDescriptorImpl(
                         this,
                         new ExtensionClassReceiver(this, kotlinType, null),
                         Annotations.Companion.getEMPTY()
                 );
+                receiverLabelStorage.put(typeReference.nameForReceiverLabel(), receiverParameterDescriptor);
+                return receiverParameterDescriptor;
             }).collect(Collectors.toList());
         });
     }

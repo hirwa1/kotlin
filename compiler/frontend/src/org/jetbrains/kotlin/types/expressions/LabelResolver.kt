@@ -178,11 +178,9 @@ object LabelResolver {
                 val element = resolveNamedLabel(labelName, targetLabel, context.trace, expression is KtThisExpression)
                 val declarationDescriptor = context.trace.bindingContext[DECLARATION_TO_DESCRIPTOR, element]
                 if (declarationDescriptor is FunctionDescriptor) {
-                    val receiverToLabelMap =
-                        context.trace.bindingContext[DESCRIPTOR_TO_NAMED_RECEIVERS, if (declarationDescriptor is PropertyAccessorDescriptor) declarationDescriptor.correspondingProperty else declarationDescriptor]
-                    val thisReceiver = receiverToLabelMap?.entries?.find {
-                        it.value == labelName.identifier
-                    }?.key ?: declarationDescriptor.extensionReceiverParameter
+                    val receiverLabelStorage =
+                        context.trace.bindingContext[DESCRIPTOR_TO_RECEIVER_LABEL_STORAGE, if (declarationDescriptor is PropertyAccessorDescriptor) declarationDescriptor.correspondingProperty else declarationDescriptor]
+                    val thisReceiver = receiverLabelStorage?.get(labelName.identifier) ?: declarationDescriptor.extensionReceiverParameter
                     if (thisReceiver != null) {
                         context.trace.record(LABEL_TARGET, targetLabel, element)
                         context.trace.record(REFERENCE_TARGET, referenceExpression, declarationDescriptor)
